@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Panorama</string>
+
+    <string name="dji_sdk_activate_error">DJI SDK activation error</string>
+    <string name="stitching">Stitch</string>
+    <string name="one_key_panorama">One Button Panorama</string>
+    <string name="commonMessageString">Common message</string>
+    <string name="groundstation_take_control">Caution! GroundStation taking control now</string>
+    <string name="init_gimabal_yaw">Initializing gimbal....</string>
+    <string name="test">Test</string>
+    <string name="capturing_image">Capturing</string>
+    <string name="capture_image_complete">Capture complete</string>
+    <string name="img_view">Image view</string>
+</resources>
