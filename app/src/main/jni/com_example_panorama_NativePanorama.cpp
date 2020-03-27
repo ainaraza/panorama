@@ -1,9 +1,31 @@
 #include "com_example_panorama_NativePanorama.h"
-#include "opencv2/opencv.hpp"
+#include "opencv2/core.hpp"
+#include <jni.h>
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/base.hpp>
+#include "opencv2/imgproc.hpp"
+#include <string>
+#include <iostream>
+
 #include "opencv2/stitching.hpp"
+#include "opencv2/imgcodecs.hpp"
+
+#define BORDER_GRAY_LEVEL 0
+
 #include <android/log.h>
+#include <android/bitmap.h>
+#include <sstream>
+
+#define LOG_TAG "GESTION_STITCHING"
+
 using namespace std;
 using namespace cv;
+
+
+#define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG_TAG,__VA_ARGS__)
+#define  LOGW(...)  __android_log_print(ANDROID_LOG_WARN,LOG_TAG,__VA_ARGS__)
+#define  LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG_TAG,__VA_ARGS__)
+#define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
 
 JNIEXPORT void JNICALL Java_com_example_panorama_NativePanorama_processPanorama
   (JNIEnv * env, jclass clazz, jlongArray imageAddressArray, jlong outputAddress)
@@ -26,28 +48,36 @@ JNIEXPORT void JNICALL Java_com_example_panorama_NativePanorama_processPanorama
         float scale = 1000.0f / curimage.rows;
         resize(curimage, curimage, Size(scale * curimage.rows, scale * curimage.cols));
         imgVec.push_back(curimage);
+
       }
       Mat & result  = *(Mat*) outputAddress;
-      Stitcher stitcher = Stitcher::createDefault(0);
-      stitcher.stitch(imgVec, result);
+
+      Stitcher stitcher = Stitcher::createDefault(true);
+
+      detail::BestOf2NearestMatcher *matcher = new detail::BestOf2NearestMatcher(false, 0.5f);
+      stitcher.setFeaturesMatcher(matcher);
+      stitcher.setBundleAdjuster(new detail::BundleAdjusterRay());
+      stitcher.setSeamFinder(new detail::NoSeamFinder);
+      stitcher.setExposureCompensator(new detail::NoExposureCompensator());//exposure compensation
+      stitcher.setBlender(new detail::FeatherBlender());
+
+      //stitcher.setRegistrationResol(-1); /// 0.6
+      //stitcher.setSeamEstimationResol(-1);   /// 0.1
+      //stitcher.setCompositingResol(-1);   //1
+      //stitcher.setPanoConfidenceThresh(-1);   //1
+      //stitcher.setWaveCorrection(true);
+      //stitcher.setWaveCorrectKind(detail::WAVE_CORRECT_HORIZ);
+
+
+       LOGD("Begin stitching ...");
+       Stitcher::Status status = stitcher.stitch(imgVec, result);
+       if (status != Stitcher::OK)
+       {
+           LOGD("Can't stitch images, error code");
+           cout << "Can't stitch images, error code = " << int(status) << endl;
+       } else {
+           LOGD("Stitching OK");
+       }
       // Release the jlong array
       env->ReleaseLongArrayElements(imageAddressArray, imgAddressArr ,0);
-
-    /*  vector<Mat> imgVecPartial;
-      vector<vector<Mat>> allImages(4, vector<Mat>());
-
-    __android_log_print(ANDROID_LOG_INFO, "NATIVELOG", "Helloworld");
-      int n_groups = 4;
-      int n_in_group = 2;
-      for(int i=0; i<n_groups; i++){
-        Mat stitchedGroup;
-        for(int j=0; j<n_in_group; j++){
-            Mat& curimage = *(Mat*) imgAddressArr[2*i + j];
-            float scale = 1000.0f / curimage.rows;
-            resize(curimage, curimage, Size(scale * curimage.rows, scale * curimage.cols));
-            allImages[i].push_back(curimage);
-        }
-        Stitcher s = Stitcher::createDefault(1);
-        //s.stitch(allImages[i], stitchedGroup);
-      }*/
   }

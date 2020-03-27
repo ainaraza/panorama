@@ -106,18 +106,27 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
     private int clicked_once = 0;
 
     public static int x, y;
-    public int x_init=60;
-    public int y_init=80;
+    public int x_init=70;
+    public int y_init=60;
     private static int x_final=0, y_final=0, dx=0, dy=0;
     private TextView txtlist, xValue, yValue, zValue, notif;
 
     private ImageView spot_left, spot_right;
     private Button startButton, stitchingButton;
+    private int direction = 1;
+    private double starting_pitch;
+    private boolean started_pitch;
+
+    // Status
+    private boolean can_start = false, started = false;
+    private TextView can_start_view;
+    private boolean can_take_picture = false;
+    private boolean taking_picture = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_boule);
+        setContentView(R.layout.activity_camera2);
 
         textureView = (TextureView) findViewById(R.id.textureView);
         loading = findViewById(R.id.loading);
@@ -128,7 +137,7 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
          */
         startButton = (Button)findViewById(R.id.startButton);
         stitchingButton = (Button)findViewById(R.id.stitchingButton);
-        textureView = (TextureView)findViewById(R.id.texture);
+        textureView = (TextureView)findViewById(R.id.textureView);
         txtlist = (TextView)findViewById(R.id.sensorslist);
         xValue = (TextView)findViewById(R.id.xValue);
         yValue = (TextView)findViewById(R.id.yValue);
@@ -136,17 +145,19 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
         notif = (TextView)findViewById(R.id.notif);
         spot_left = (ImageView)findViewById(R.id.spot_left);
         spot_right = (ImageView)findViewById(R.id.spot_right);
+        can_start_view = (TextView) findViewById(R.id.canstart);
 
-//        cam = new EZCam(this);
-//        cam.setCameraCallback(this);
 
-//        String id = cam.getCamerasList().get(CameraCharacteristics.LENS_FACING_BACK);
-//        cam.selectCamera(id);
+        cam = new EZCam(this);
+        cam.setCameraCallback(this);
+
+        String id = cam.getCamerasList().get(CameraCharacteristics.LENS_FACING_BACK);
+        cam.selectCamera(id);
 
         Dexter.withActivity(MainActivity.this).withPermission(Manifest.permission.CAMERA).withListener(new PermissionListener() {
             @Override
             public void onPermissionGranted(PermissionGrantedResponse response) {
-//                cam.open(CameraDevice.TEMPLATE_PREVIEW, textureView);
+                cam.open(CameraDevice.TEMPLATE_PREVIEW, textureView);
             }
 
             @Override
@@ -174,75 +185,67 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
 
                 long diff = Calendar.getInstance().getTimeInMillis() - ti;
 
-                roll += (axisY * diff) / 1000;
+                if(started){
+                    roll += (axisY * diff) / 1000;
+                }
                 pitch += (axisX * diff) / 1000;
 
                 ti = Calendar.getInstance().getTimeInMillis(); // get the initial time
 
-                if((int)Math.toDegrees(pitch) >= -3 && (int)Math.toDegrees(pitch) <= 3 && takeone == false) {
-                    x_final = (int) spot_right.getX();
-                    y_final = (int) spot_right.getY();
 
-                    //Toast.makeText(MainActivity.this, "x_final = " + Float.toString(x_final ), Toast.LENGTH_SHORT).show();
-                    //Toast.makeText(MainActivity.this, "y_final = " + Float.toString(y_final), Toast.LENGTH_SHORT).show();
-                    y = y_init;
-                    x = x_init;
-                    dx = (int)(x_final/15);
-                    //Toast.makeText(MainActivity.this, "dx = " + Float.toString(dx ), Toast.LENGTH_SHORT).show();
-                    if ((-1) * (int) (Math.toDegrees(roll)) / quinze == 1 && (int) (Math.toDegrees(roll)) < 0 && nombre_photo < pic_number_to_take) {
-                        // do something
-                        Toast.makeText(MainActivity.this, "Photo: " + (int)Math.toDegrees(roll) + "° Prise", Toast.LENGTH_SHORT).show();
-                        isMultipleOf15 = true;
-                        if (isMultipleOf15 == true) {
-                            // Take picture
 
-                            angle += 15;
-                            roll = 0;
-                            isMultipleOf15 = false;
-                        }
-                        if (angle > 60) {
-                            Toast.makeText(MainActivity.this, "Les " + nombre_photo + " photos capturés avec succès.", Toast.LENGTH_SHORT).show();
-                            finish();
-                        }
+                // Initializing the x_final and y_final
+                x_final = (int) spot_right.getX();
+                y_final = (int) spot_right.getY();
+                Log.i("dx", Integer.toString(dx));
+                // Doing the calculations
+                dx = (x_final - x_init)/15;
+
+                if(! taking_picture){
+                    if(started){
+                        Log.i("xrd", Float.toString(x_init + (float) Math.toDegrees(roll) * (-dx)));
+                        spot_left.setX(x_init + (float) Math.toDegrees(roll) * (-dx));
+                    }
+
+                    if(Math.abs(Math.abs(Math.toDegrees(roll)) - 15) < 0.5 && Math.abs(Math.toDegrees(pitch)) < 3){
+                        can_take_picture = true;
+                    }else{
+                        can_take_picture = false;
+                    }
+
+                    zValue.setText(Double.toString(Math.toDegrees(pitch)));
+                    spot_left.setY(y_init - (float) Math.toDegrees(pitch) * 5);
+                }
+
+                // Setting the colors
+                if(Math.abs(Math.toDegrees(pitch))>3){
+                    spot_left.setImageResource(R.drawable.circle_red);
+                }else{
+                    if(Math.abs(Math.toDegrees(roll)) > 14){
+                        spot_left.setImageResource(R.drawable.circle_blue);
+                    }else{
+                        spot_left.setImageResource(R.drawable.spot);
                     }
                 }
-                xValue.setText("Pitch: " + (int) Math.toDegrees(pitch));
-                yValue.setText("Roll: " + (int) Math.toDegrees(roll)*(-1));
-                //zValue.setText("Z: " + axisZ);
 
-                // x = x_init + (int) Math.toDegrees(roll) * (-10) * 8;
-                // y = y_init + (int) Math.toDegrees(pitch) * 10;
+                if(can_start){
+                    if(started){
+                        can_start_view.setVisibility(View.VISIBLE);
+                    }
+                }else{
+                    can_start_view.setVisibility(View.INVISIBLE);
+                }
 
-                // x = x_init + pas à avoir 15°
-                x = x_init + (int) Math.toDegrees(roll) * -dx;
-                y = y_init + (int) Math.toDegrees(pitch) * 10;
-//
-                spot_left.setY(y);
-                spot_left.setX(x);
+                if(started){
+                    if(can_take_picture){
+                        startButton.setVisibility(View.VISIBLE);
+                    }else{
+                        startButton.setVisibility(View.INVISIBLE);
+                    }
+                }
 
                 Log.i("positionspotx", Float.toString(spot_left.getX()));
                 Log.i("positionspoty", Float.toString(spot_left.getY()));
-//                float value = event.values[1]; // value in radians of roll acceleration
-//
-//                angle += value * diff / 1000;
-//                Log.i("abcd", Float.toString((float) Math.toDegrees(angle)));
-//                ti = Calendar.getInstance().getTimeInMillis(); // get the initial time
-//
-//                ProgressBar progressBar2 = findViewById(R.id.progressBar2);
-//                progressBar2.setProgress((int) Math.abs(Math.toDegrees(angle)));
-//                // 15 degrees detection
-//                /*
-//                    When rotating to the right, the angle decreases
-//                 */
-//                if(Math.abs(Math.toDegrees(angle)) > 15){
-//                    loading.setVisibility(View.VISIBLE);
-//
-//                    cam.takePicture();
-//                    progressBar2.getProgressDrawable().setColorFilter(Color.GREEN, android.graphics.PorterDuff.Mode.SRC_IN);
-//                    progressBar2.setProgress(0);
-//                    angle = 0;
-//                    progressBar2.getProgressDrawable().setColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN);
-//                }
             }
 
             @Override
@@ -260,16 +263,10 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
                 SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
                 SensorManager.getOrientation(rotationMatrix, result);
 
-                convertToDegrees(result);
-
-//                ProgressBar progressBar = findViewById(R.id.progressBar);
-//                progressBar.setProgress((int) Math.abs(result[1]));
-//
-//                if(progressBar.getProgress() >= 80){
-//                    progressBar.getProgressDrawable().setColorFilter(Color.GREEN, android.graphics.PorterDuff.Mode.SRC_IN);
-//                }else{
-//                    progressBar.getProgressDrawable().setColorFilter(Color.RED, android.graphics.PorterDuff.Mode.SRC_IN);
-//                }
+                if(!started_pitch){
+                    pitch = (float) (-Math.PI/2 - result[1]);
+                    started_pitch = true;
+                }
             }
 
             @Override
@@ -304,59 +301,96 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
         textureView.setOnLongClickListener(this);
     }
 
+    public void takePicture(View v){
+        showProcessingDialog("Capturing...");
+        if(!started){
+            started = true;
+            cam.takePicture();
+        }else{
+            cam.takePicture();
+            taking_picture = true;
+        }
+    }
+
     public void stitch(View v){
+        showProcessingDialog("Stitching en cours...");
         Context context = this.getBaseContext();
         String p = context.getExternalFilesDir(null).getAbsolutePath();
+//        p = "/storage/sdcard0/a_stitching";
         // OpenCV
         try {
             // Create a long array to store all image address
             int elems = listImage.size();
             long[] tempobjadr = new long[elems];
+            Log.i("LEN", Integer.toString(tempobjadr.length));
 //
 //
             for (int i = 0; i < elems; i++) {
                 tempobjadr[i] = listImage.get(i).getNativeObjAddr();
             }
-//            // Create a Mat to store the final panorama image
-//            Mat result = new Mat();
-//            // Call the OpenCV C++ Code to perform stitching process
-//            NativePanorama.processPanorama(tempobjadr, result.getNativeObjAddr());
-
-            // Trying with 6 by 6
-            int n_groups = 2;
-            int n_in_group = 2;
-//
-            long[][] allTempObjAdr = new long[n_groups][n_in_group];
-            Mat[] results = new Mat[n_groups];
-            long[] resultsAdr = new long[n_groups];
-
-            Log.i("ADR", Arrays.toString(tempobjadr));
-            for (int i = 0; i < n_groups; i++) {
-
-                for (int j = 0; j < n_in_group; j++) {
-                    Log.i("ADR", "a loop");
-                    allTempObjAdr[i][j] = tempobjadr[n_in_group*i + j];
-                }
-
-            }
-
-            // Initializing results
-            for (int i = 0; i < results.length; i++) {
-                results[i] = new Mat();
-            }
-
-            Log.i("ADR", "outside");
-            for(int k=0; k < n_groups; k++){
-                Log.i("ADR", "iteration");
-                NativePanorama.processPanorama(allTempObjAdr[k], results[k].getNativeObjAddr());
-            }
-
-            // Stitching all groups
-            for (int i = 0; i < n_groups; i++) {
-                resultsAdr[i] = results[i].getNativeObjAddr();
-            }
+            // Create a Mat to store the final panorama image
             Mat result = new Mat();
-            NativePanorama.processPanorama(resultsAdr, result.getNativeObjAddr());
+            // Call the OpenCV C++ Code to perform stitching process
+            NativePanorama.processPanorama(tempobjadr, result.getNativeObjAddr());
+
+            // Second approach
+//            int elems = listImage.size();
+//            long[] tempobjadr = new long[elems];
+//            Log.i("LEN", Integer.toString(tempobjadr.length));
+//
+//            long[] toBeStitched = new long[2];
+//            toBeStitched[0] = listImage.get(0).getNativeObjAddr();
+//            toBeStitched[1] = listImage.get(1).getNativeObjAddr();
+//
+//            Mat result = new Mat();
+//            NativePanorama.processPanorama(toBeStitched, result.getNativeObjAddr());
+//
+//            for (int i = 2; i < elems; i++) {
+//                toBeStitched[0] = result.getNativeObjAddr();
+//                toBeStitched[1] = listImage.get(i).getNativeObjAddr();
+//                NativePanorama.processPanorama(toBeStitched, result.getNativeObjAddr());
+//            }
+
+//            // Trying with 6 by 6
+//            // Here we have a group of 2 by 2
+//            // If we have 24 images, we must set it to be n_groups = 4 and n_in_group = 6
+//            int n_groups = 2;
+//            int n_in_group = 6;
+//
+//            long[][] allTempObjAdr = new long[n_groups][n_in_group];
+//            Mat[] results = new Mat[n_groups];
+//            long[] resultsAdr = new long[n_groups];
+//
+//            Log.i("ADR", Arrays.toString(tempobjadr));
+//            for (int i = 0; i < n_groups; i++) {
+//
+//                for (int j = 0; j < n_in_group; j++) {
+//                    Log.i("ADR", "a loop");
+//                    allTempObjAdr[i][j] = tempobjadr[n_in_group*i + j];
+//                }
+//
+//            }
+//
+//            // Initializing results
+//            for (int i = 0; i < results.length; i++) {
+//                results[i] = new Mat();
+//            }
+//
+//            Log.i("ADR", "outside");
+//            for(int k=0; k < n_groups; k++){
+//                Log.i("ADR", "iteration");
+//                NativePanorama.processPanorama(allTempObjAdr[k], results[k].getNativeObjAddr());
+//            }
+//
+//            // Stitching all groups
+//            for (int i = 0; i < n_groups; i++) {
+//                resultsAdr[i] = results[i].getNativeObjAddr();
+//            }
+//
+//            Mat result = new Mat();
+//            NativePanorama.processPanorama(resultsAdr, result.getNativeObjAddr());
+
+            // Not changing
             final String fileName = p+ "/stitch.png";
 
 //            final String fileName = "";
@@ -366,16 +400,15 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
         } catch (Exception e) {
             e.printStackTrace();
         }
+        closeProcessingDialog();
     }
 
     @Override
     public void onPicture(Image image) {
+        closeProcessingDialog();
+        Toast.makeText(getApplicationContext(), "Taken picture " + Integer.toString(listImage.size() + 1), Toast.LENGTH_SHORT).show();
+
         cam.stopPreview();
-        String filename = "image_"+dateFormat.format(new Date())+".jpg";
-        Context context = this.getBaseContext();
-        String p = context.getExternalFilesDir(null).getAbsolutePath();
-        Log.i("abcd", p);
-        File file = new File(p, filename);
 
 
         // Testing JavaCV
@@ -387,12 +420,14 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
         Mat result = Imgcodecs.imdecode(inputframe, Imgcodecs.CV_LOAD_IMAGE_UNCHANGED);
         listImage.add(result);
         TextView nbImages = findViewById(R.id.nbImages);
-        nbImages.setText(Integer.toString(listImage.size()));
+        xValue.setText(Integer.toString(listImage.size()));
         image.close();
 
         Log.i("IMAGESIZE", Integer.toString(listImage.size()));
         cam.restartPreview();
-        loading.setVisibility(View.INVISIBLE);
+
+        taking_picture = false; // finished
+        roll = 0;
     }
 
     @Override
@@ -415,9 +450,9 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
         for (int i=0; i<vector.length; i++) vector[i] = Math.round(Math.toDegrees(vector[i]));
     }
 
-    private void showProcessingDialog() {
+    private void showProcessingDialog(String m) {
         cam.stopPreview();
-        ringProgressDialog = ProgressDialog.show(MainActivity.this, "", "Capturing...", true);
+        ringProgressDialog = ProgressDialog.show(MainActivity.this, "", m, true);
         ringProgressDialog.setCancelable(false);
     }
 
