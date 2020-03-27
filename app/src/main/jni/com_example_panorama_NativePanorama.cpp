@@ -27,6 +27,14 @@ using namespace cv;
 #define  LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG_TAG,__VA_ARGS__)
 #define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
 
+template <typename T>
+std::string NumberToString ( T Number )
+{
+    std::ostringstream ss;
+    ss << Number;
+    return ss.str();
+}
+
 JNIEXPORT void JNICALL Java_com_example_panorama_NativePanorama_processPanorama
   (JNIEnv * env, jclass clazz, jlongArray imageAddressArray, jlong outputAddress)
   {
@@ -47,6 +55,9 @@ JNIEXPORT void JNICALL Java_com_example_panorama_NativePanorama_processPanorama
         // Reduce the resolution for fast computation
         float scale = 1000.0f / curimage.rows;
         resize(curimage, curimage, Size(scale * curimage.rows, scale * curimage.cols));
+
+        // Save as PNG and load
+        imwrite
         imgVec.push_back(curimage);
 
       }
@@ -58,8 +69,10 @@ JNIEXPORT void JNICALL Java_com_example_panorama_NativePanorama_processPanorama
       stitcher.setFeaturesMatcher(matcher);
       stitcher.setBundleAdjuster(new detail::BundleAdjusterRay());
       stitcher.setSeamFinder(new detail::NoSeamFinder);
-      stitcher.setExposureCompensator(new detail::NoExposureCompensator());//exposure compensation
+      //stitcher.setExposureCompensator(new detail::NoExposureCompensator());//exposure compensation
+      stitcher.setExposureCompensator(new detail::GainCompensator());
       stitcher.setBlender(new detail::FeatherBlender());
+      //stitcher.setBlender(new detail::MultiBandBlender());
 
       //stitcher.setRegistrationResol(-1); /// 0.6
       //stitcher.setSeamEstimationResol(-1);   /// 0.1

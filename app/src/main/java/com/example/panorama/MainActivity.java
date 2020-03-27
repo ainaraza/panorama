@@ -281,6 +281,16 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
     public void onResume() {
 
         super.onResume();
+        View bar2 = findViewById(R.id.bar2);
+        int[] positions_bar1 = new int[2];
+        bar2.getLocationInWindow(positions_bar1);
+
+
+        //x_init = positions_bar1[0];
+        //y_init = positions_bar1[1];
+        Log.i("positionbar", Arrays.toString(positions_bar1));
+        Log.i("positionleft", Float.toString(spot_right.getX()));
+        Log.i("positionleft", Float.toString(spot_right.getY()));
         sensorManager.registerListener(rotationVectorEventListener, rotationVectorSensor, SensorManager.SENSOR_DELAY_NORMAL);
         sensorManager.registerListener(gyroscopeEventListener, gyroscopeSensor, SensorManager.SENSOR_DELAY_GAME);
 

@@ -88,5 +88,7 @@ dependencies {
     implementation group: 'org.bytedeco.javacpp-presets', name: 'ffmpeg', version: '2.6.1-0.11', classifier: 'android-arm'
     implementation group: 'org.bytedeco.javacpp-presets', name: 'ffmpeg', version: '2.6.1-0.11', classifier: 'android-x86'
 
+    implementation 'pl.pawelkleczkowski.customgauge:CustomGauge:1.0.4'
+
     implementation project(path: ':opencv-java')
 }
