@@ -34,7 +34,7 @@
         android:paddingLeft="10dp"
         android:paddingRight="10dp"
         android:paddingTop="10dp"
-        app:gaugeEndValue="100"
+        app:gaugeEndValue="360"
         app:gaugePointEndColor="@color/white"
         app:gaugePointStartColor="@color/white"
         app:gaugeStartAngle="-90"
@@ -53,5 +53,14 @@
         android:layout_marginBottom="38dp"
         android:src="@drawable/close_foreground"
         android:id="@+id/take_picture"/>
+
+    <Button
+        android:id="@+id/button2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|right"
+        android:text="Stitch"
+        android:onClick="stitch"/>
+
 
 </FrameLayout>

@@ -66,7 +66,6 @@ import java.nio.ByteBuffer;
 
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
 
 @SuppressWarnings("ALL")
@@ -155,6 +154,7 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
     private boolean isMultipleOf15 = false;
     private boolean takeone = true;
     private boolean startClicked = false;
+    public boolean pitchIsOK = false;
 
     private static int pic_number_to_take = 24;
     private static int final_angle = 360;
@@ -162,6 +162,7 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
     public static int width;
     public static int height;
     private static int x_final = 0, y_final = 0, dx = 0;
+    private static final int FROM_RADS_TO_DEGS = -57;
 
     /**
      * Acitivty_main variable
@@ -270,14 +271,14 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
         startButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 clicked_once += 1;
-                if (takeone == true) {
+                if (takeone == true && pitchIsOK == true) {
                     //Toast.makeText(MainActivity.this, "Capture du premier image", Toast.LENGTH_SHORT).show();
                     try {
                         takePicture();
                         Toast.makeText(MainActivityCelio.this, "Capture du premier image faite", Toast.LENGTH_SHORT).show();
                         nombre_photo = 1;
                         angle = 15;
-                        startClicked = true;
+
                     } catch (CameraAccessException e) {
                         e.printStackTrace();
                     } catch (FileNotFoundException e) {
@@ -286,14 +287,15 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
                         e.printStackTrace();
                     }
                     takeone = false;
+                    startClicked = true;
 
                     //if (v.getId() == R.id.startButton) {
                     //v.setBackgroundResource(R.drawable.start_green);
                     //
                     //}
+                    notif.setText("Utiliser la Bille verte pour la suite!");
                 }
 
-                notif.setText("Utiliser la Bille verte pour la suite!");
                 if (clicked_once > 1) {
                     Toast.makeText(MainActivityCelio.this, "Première capture déjà faite, n'appuyez plus ce bouton. Utilisez la jauge du bille vers vers la bille blanche", Toast.LENGTH_LONG).show();
                 }
@@ -359,32 +361,13 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
 
     public void onSensorChanged(SensorEvent event) {
         switch (event.sensor.getType()) {
-            case Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED:
+            case Sensor.TYPE_MAGNETIC_FIELD:
                 mags = event.values.clone();
                 break;
             case Sensor.TYPE_ACCELEROMETER:
                 accels = event.values.clone();
                 break;
         }
-
-//        if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER)
-//            accels = event.values;
-//        if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD)
-//            mags = event.values;
-        if ((mags == null) || (accels == null))
-            return;
-
-        float[] r = new float[9];
-        float[] i = new float[9];
-        SensorManager.getRotationMatrix(r,i, accels, mags);
-
-        float[] orientation = new float[3];
-        SensorManager.getOrientation(r, orientation);
-
-
-        double rollAngle = orientation[1] * 180 / Math.PI;
-        double pitchAngle = orientation[2] * 180 / Math.PI;
-
 
         /*notif.setText("xR: " + (int)spot_right.getX() + " <--> yR: " + (int)spot_right.getY() +
                 " et x_i: " + (width-(int)spot_right.getX()) + ", y_i: " + (height-(int)spot_right.getX()));*/
@@ -397,109 +380,30 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
             float[] outGravity = new float[9];
             SensorManager.remapCoordinateSystem(gravity, SensorManager.AXIS_X,SensorManager.AXIS_Z, outGravity);
             SensorManager.getOrientation(outGravity, values);
+            //SensorManager.getOrientation(gravity, values);
 
             //azimuth = values[0] * 57.2957795f;
             azimuth = values[0];
-            float axisX = values[1];
-            float axisY = values[2];
+            float axisX = values[1]; /** PITCH  value*/
+            float axisY = values[2]; /** ROLL value */
 
             //notif2.setText("(axisX, axisY, axisZ) = (" + axisX + ", " + axisY + ", " + azimuth + ")");
 
             mags = null;
             accels = null;
 
-            long diff = Calendar.getInstance().getTimeInMillis() - ti;
-
-            /** Initialisation */
-            x_init = (int)((int)width - (int)spot_right.getX())/2 + 15;
-
-            y_init = (int)spot_right.getY();
-
-            x_final = (int) spot_right.getX();
-            y_final = y_init;
-
-            if(startClicked == true) {
-                startButton.setBackgroundResource(R.drawable.start_green);
-                //roll += (axisY-0.1f * diff) / 1000;
-//                roll += (axisY * diff) / 1000;
-
-//                roll = (float) (axisY * 180 / Math.PI);
-//                roll = axisY;
-                roll = (float) rollAngle;
-            } //else notif2.setText( "Error, startClicked == false");
-
-//            pitch += (axisX * diff) / 1000;
             pitch = axisX;
+            roll = axisY;
 
-            ti = Calendar.getInstance().getTimeInMillis(); // get the initial time
-
-            if((int)Math.toDegrees(pitch) >= -4 && (int)Math.toDegrees(pitch) <= 4 ) {
-                spot_left.setImageResource(R.drawable.green_circle);
-                if(takeone == false && startClicked == true) {
-                    //x_final = width - x_init;
-                    //y_final = height - y_init;
-
-
-                    //Toast.makeText(MainActivity.this, "x_final = " + Float.toString(x_final ), Toast.LENGTH_SHORT).show();
-                    //Toast.makeText(MainActivity.this, "y_final = " + Float.toString(y_final), Toast.LENGTH_SHORT).show();
-                    int rollDegree = (int) (Math.toDegrees(roll));
-                    dx = (int) ((x_final - x_init) / 15);
-                    //Toast.makeText(MainActivity.this, "dx = " + Float.toString(dx), Toast.LENGTH_SHORT).show();
-                    if ((-1) * rollDegree / quinze == 1 && rollDegree < 0 && nombre_photo <= pic_number_to_take) {
-                        // do something
-
-                        isMultipleOf15 = true;
-                        if (isMultipleOf15 == true) {
-                            try {
-                                takePicture();
-                            } catch (CameraAccessException e) {
-                                e.printStackTrace();
-                            } catch (FileNotFoundException e) {
-                                e.printStackTrace();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            nombre_photo += 1;
-                            angle += 15;
-                            //Toast.makeText(MainActivity.this, "Photo: " + (-nombre_photo*rollDegree) + "° Prise", Toast.LENGTH_SHORT).show();
-                            //notif.setText("Photo: " + (-nombre_photo*rollDegree) + "° Prise");
-
-                            roll = 0;
-                            axisY = 0;
-                            isMultipleOf15 = false;
-
-                            notif2.setText("Photo: " + angle + "° Prise. Image N°" + nombre_photo + "/" + pic_number_to_take);
-
-                            y = y_init;
-                            x = x_init;
-                        }
-                        if (angle >= final_angle) {
-                            //Toast.makeText(MainActivity.this, "Les " + nombre_photo + " photos capturés avec succès.", Toast.LENGTH_SHORT).show();
-                            //Toast.makeText(MainActivity.this, "Cliquez le bouton Stitch maintenant", Toast.LENGTH_SHORT).show();
-                            startClicked = false;
-                            x = x_init;
-                            y = y_init;
-                            notif.setText("Cliquez le bouton STITCH maintenant");
-                            notif2.setText(nombre_photo + " images sauvés");
-                            startButton.setBackgroundResource(R.drawable.start_blue);
-                            //finish();
-                        }
-                    }
-                }
-            } else{
-                spot_left.setImageResource(R.drawable.red_circle);
-            }
-            /**
-             xValue.setText("Pitch: " + (int)Math.toDegrees(pitch) + "..... " + "W:" + width + " - " + x_final);
-             yValue.setText("Roll: " +  (-1 * (int)Math.toDegrees(roll)) + "° et " + "H:" + height + " - " + y_final);
-             zValue.setText("Z: " + azimuth + " et dx = " + dx);
-             */
             xValue.setText("Pitch: " + (int)Math.toDegrees(pitch));
-            yValue.setText("Roll: " +  (-1 * (int)Math.toDegrees(roll)) + "°");
 
+            yValue.setText("Roll: " +  (-1 * (int)Math.toDegrees(roll)));
+
+            zValue.setText("Azimuth: " + Math.toDegrees(azimuth));
+            
             /** x = x_init + pas à avoir 15° */
             x = x_init + (int) Math.toDegrees(roll)*(-dx);
-            y = (int) (y_init + Math.toDegrees(pitch));
+            y = y_init + (int) Math.toDegrees(pitch);
 
             //spot_left.setContentDescription((-1 * (int)Math.toDegrees(roll)) + "°");
             spot_left.setY(y);
@@ -773,9 +677,7 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
         super.onResume();
         startBackgroundThread();
         sensorManager.registerListener(this, accelerometerSensor, SensorManager.SENSOR_DELAY_NORMAL);
-        sensorManager.registerListener(this, magneticSensor, sensorManager.SENSOR_DELAY_NORMAL);
-
-        ti = Calendar.getInstance().getTimeInMillis(); // Initialize the time for calculating angle with gyroscope
+        sensorManager.registerListener(this, magneticSensor, SensorManager.SENSOR_DELAY_NORMAL);
 
         if (textureView.isAvailable()) {
             try {

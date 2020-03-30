@@ -22,7 +22,9 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
+import android.media.AudioManager;
 import android.media.Image;
+import android.media.ToneGenerator;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -165,6 +167,8 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
     private float initial_x = 60;
     private float final_y = 100 + 82/2 - 5;
     private float final_x = 60 + 435;
+    private int progression = 0;
+
     /*** Fin Variables integration design ***/
 
     @Override
@@ -219,6 +223,23 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
                 token.continuePermissionRequest();
             }
         }).check();
+
+        Dexter.withActivity(MainActivityIntegration.this).withPermission(Manifest.permission.READ_EXTERNAL_STORAGE).withListener(new PermissionListener() {
+            @Override
+            public void onPermissionGranted(PermissionGrantedResponse response) {
+
+            }
+
+            @Override
+            public void onPermissionDenied(PermissionDeniedResponse response) {
+
+            }
+
+            @Override
+            public void onPermissionRationaleShouldBeShown(PermissionRequest permission, PermissionToken token) {
+
+            }
+        });
 
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         rotationVectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
@@ -304,6 +325,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
                     started = true;
                     taking_picture = true;
                     cam.takePicture();
+
                 }
 
             }
@@ -555,6 +577,12 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
 
         taking_picture = false; // finished
         roll = 0;
+
+        progression += 15;
+        gauge.setValue(progression);
+
+        ToneGenerator toneG = new ToneGenerator(AudioManager.STREAM_ALARM, 100);
+        toneG.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 200);
     }
 
     @Override
