@@ -400,7 +400,7 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
             yValue.setText("Roll: " +  (-1 * (int)Math.toDegrees(roll)));
 
             zValue.setText("Azimuth: " + Math.toDegrees(azimuth));
-            
+
             /** x = x_init + pas à avoir 15° */
             x = x_init + (int) Math.toDegrees(roll)*(-dx);
             y = y_init + (int) Math.toDegrees(pitch);
