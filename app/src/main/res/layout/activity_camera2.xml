@@ -117,6 +117,17 @@
                 app:layout_constraintTop_toTopOf="parent"
                 tools:ignore="ContentDescription" />
 
+            <TextView
+                android:id="@+id/pitch_value_inside"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_alignLeft="@id/spot_left"
+                android:layout_alignTop="@id/spot_left"
+                android:layout_alignRight="@id/spot_left"
+                android:layout_alignBottom="@id/spot_left"
+                android:gravity="center"
+                android:text="10" />
+
             <ImageView
                 android:id="@+id/spot_right"
                 android:layout_width="50dp"

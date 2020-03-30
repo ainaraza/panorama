@@ -4,12 +4,14 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.BitmapRegionDecoder;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.hardware.Sensor;
@@ -23,15 +25,21 @@ import android.hardware.camera2.CaptureRequest;
 import android.media.Image;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.util.Log;
+import android.view.Display;
 import android.view.TextureView;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.appcompat.app.AlertDialog;
 
 import com.example.panorama.R;
 import com.karumi.dexter.Dexter;
@@ -53,6 +61,8 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import org.opencv.core.Mat;
 import static org.opencv.imgcodecs.Imgcodecs.imwrite;
@@ -64,8 +74,9 @@ import org.w3c.dom.Text;
 
 import me.aflak.ezcam.EZCam;
 import me.aflak.ezcam.EZCamCallback;
+import pl.pawelkleczkowski.customgauge.CustomGauge;
 
-public class MainActivity extends Activity implements EZCamCallback, View.OnLongClickListener{
+public class MainActivityIntegration extends Activity implements EZCamCallback, View.OnLongClickListener{
     static {
         System.loadLibrary("opencv_java3");
         System.loadLibrary("MyLib");
@@ -86,7 +97,7 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
     private SensorEventListener gyroscopeEventListener;
     private SensorEventListener rotationVectorEventListener;
     private final float[] rotationMatrix = new float[9];
-//    private MatVector imgs = new MatVector();
+    //    private MatVector imgs = new MatVector();
     private List<Bitmap> bitmapImgs = new ArrayList<Bitmap>();
     private long ti;
     private float angle = 0;
@@ -124,10 +135,46 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
     private boolean can_take_picture = false;
     private boolean taking_picture = false;
 
+    /*** Debut Variables Integration design ***/
+    private int counter = 1;
+    private boolean isOk = false;
+
+    private Handler mHandler = new Handler();
+
+    private static final int REQUEST_IMAGE_CAPTURE = 101;
+
+    BallView mBallView = null;
+    DegreeView mDegreeView = null;
+
+    android.graphics.PointF mBallPos, mBallSpd;
+    int mScrWidth, mScrHeight;
+    private float xMax, yMax, mBallPosZ, mBallSpdZ;
+    Timer mTmr = null;
+    TimerTask mTsk = null;
+    Handler RedrawHandler = new Handler();
+
+    private float rollV, pitchV;
+
+    Mat mRGBA, mRGBAT;
+
+    private CustomGauge gauge;// Declare this variable in your activity
+    private int circleProgess = 4;
+    private ImageView patern_image;
+
+    private float initial_y = 100 + 82/2 - 5;
+    private float initial_x = 60;
+    private float final_y = 100 + 82/2 - 5;
+    private float final_x = 60 + 435;
+    /*** Fin Variables integration design ***/
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_camera2);
+
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        setContentView(R.layout.activity_integration);
 
         textureView = (TextureView) findViewById(R.id.textureView);
         loading = findViewById(R.id.loading);
@@ -136,18 +183,18 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
         /**
          * Obtenir les éléments de l'interface
          */
-        startButton = (Button)findViewById(R.id.startButton);
-        stitchingButton = (Button)findViewById(R.id.stitchingButton);
         textureView = (TextureView)findViewById(R.id.textureView);
-        txtlist = (TextView)findViewById(R.id.sensorslist);
-        xValue = (TextView)findViewById(R.id.xValue);
-        yValue = (TextView)findViewById(R.id.yValue);
-        zValue = (TextView)findViewById(R.id.zValue);
-        notif = (TextView)findViewById(R.id.notif);
-        spot_left = (ImageView)findViewById(R.id.spot_left);
-        spot_right = (ImageView)findViewById(R.id.spot_right);
-        can_start_view = (TextView) findViewById(R.id.canstart);
-        pitch_value_inside = (TextView) findViewById(R.id.pitch_value_inside);
+//        startButton = (Button)findViewById(R.id.startButton);
+//        stitchingButton = (Button)findViewById(R.id.stitchingButton);
+//        txtlist = (TextView)findViewById(R.id.sensorslist);
+//        xValue = (TextView)findViewById(R.id.xValue);
+//        yValue = (TextView)findViewById(R.id.yValue);
+//        zValue = (TextView)findViewById(R.id.zValue);
+//        notif = (TextView)findViewById(R.id.notif);
+//        spot_left = (ImageView)findViewById(R.id.spot_left);
+//        spot_right = (ImageView)findViewById(R.id.spot_right);
+//        can_start_view = (TextView) findViewById(R.id.canstart);
+//        pitch_value_inside = (TextView) findViewById(R.id.pitch_value_inside);
 
 
         cam = new EZCam(this);
@@ -156,7 +203,7 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
         String id = cam.getCamerasList().get(CameraCharacteristics.LENS_FACING_BACK);
         cam.selectCamera(id);
 
-        Dexter.withActivity(MainActivity.this).withPermission(Manifest.permission.CAMERA).withListener(new PermissionListener() {
+        Dexter.withActivity(MainActivityIntegration.this).withPermission(Manifest.permission.CAMERA).withListener(new PermissionListener() {
             @Override
             public void onPermissionGranted(PermissionGrantedResponse response) {
                 cam.open(CameraDevice.TEMPLATE_PREVIEW, textureView);
@@ -177,6 +224,44 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
         rotationVectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
         gyroscopeSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
 
+        /*** Integration ***/
+        final FrameLayout mainView = (android.widget.FrameLayout) findViewById(R.id.niveau_view);
+
+        Point size = new Point();
+        Display display = getWindowManager().getDefaultDisplay();
+        display.getSize(size);
+
+        mScrWidth = size.x;
+        mScrHeight = size.y;
+        mBallPos = new android.graphics.PointF();
+        mBallSpd = new android.graphics.PointF();
+
+        xMax = (float) mScrWidth - 155;
+        yMax = (float) 180;
+
+        mBallPos.x = 60;
+        mBallPos.y = mScrHeight/2;
+        mBallSpd.x = 0;
+        mBallSpd.y = 0;
+
+        mBallView = new BallView(this,mBallPos.x,mBallPos.y, mBallPosZ,5);
+        mDegreeView = new DegreeView(this, Float.toString(mBallPosZ), mBallPos.x,mBallPos.y, mBallPosZ,5);
+
+        mainView.addView(mBallView);
+        mainView.addView(mDegreeView);
+
+
+        gauge = findViewById(R.id.gauge2);
+        patern_image = findViewById(R.id.patern_image);
+
+
+        mBallView.mY = initial_y;
+        mBallView.mX = initial_x;
+        mDegreeView.mY = initial_y;
+        mDegreeView.mX = initial_x;
+
+        /*** Fin integration ***/
+
         // Gyroscope listener
         gyroscopeEventListener = new SensorEventListener() {
             @Override
@@ -194,66 +279,33 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
 
                 ti = Calendar.getInstance().getTimeInMillis(); // get the initial time
 
-
-
-                // Initializing the x_final and y_final
-                x_final = (int) spot_right.getX();
-                y_final = (int) spot_right.getY();
-                Log.i("dx", Integer.toString(dx));
                 // Doing the calculations
-                dx = (x_final - x_init)/15;
-
+                dx = (int) ((final_x - initial_x)/15);
+                Log.i("roll", String.valueOf(Math.toDegrees(roll)));
                 if(! taking_picture){
                     if(started){
-                        Log.i("xrd", Float.toString(x_init + (float) Math.toDegrees(roll) * (-dx)));
-                        spot_left.setX(x_init + (float) Math.toDegrees(roll) * (-dx));
-                        pitch_value_inside.setX(x_init + (float) Math.toDegrees(roll) * (-dx));
+                        mBallView.mX = initial_x + (float) Math.toDegrees(roll) * (-dx);
+                        mDegreeView.mX = initial_x + (float) Math.toDegrees(roll) * (-dx);
+
                     }
 
-                    if(Math.abs(Math.abs(Math.toDegrees(roll)) - 15) < 0.5 && Math.abs(Math.toDegrees(pitch)) < 3){
-                        can_take_picture = true;
-                    }else{
-                        can_take_picture = false;
+                    if(Math.abs(Math.abs(Math.toDegrees(roll)) - 15) < 0.3 && Math.abs(Math.toDegrees(pitch)) < 3){
+                        taking_picture = true;
+                        cam.takePicture();
                     }
 
-
-                    zValue.setText(Double.toString(Math.toDegrees(pitch)));
-                    spot_left.setY(y_init - (float) Math.toDegrees(pitch) * 5);
-
-                    // Update pitch value inside the ball
-                    pitch_value_inside.setText(Integer.toString((int) Math.toDegrees(pitch)) + "°");
-                    pitch_value_inside.setY(y_init - (float) Math.toDegrees(pitch) * 5);
+                    mBallView.mY = initial_y - (float) Math.toDegrees(pitch) * 5;
+                    mDegreeView.mY = initial_y - (float) Math.toDegrees(pitch) * 5;
+                    mDegreeView.mText = Integer.toString((int) Math.toDegrees(pitch));
                 }
 
-                // Setting the colors
-                if(Math.abs(Math.toDegrees(pitch))>3){
-                    spot_left.setImageResource(R.drawable.circle_red);
-                }else{
-                    if(Math.abs(Math.toDegrees(roll)) > 14){
-                        spot_left.setImageResource(R.drawable.circle_blue);
-                    }else{
-                        spot_left.setImageResource(R.drawable.spot);
-                    }
+                if(!started && can_start && (int) Math.toDegrees(pitch) == 0){
+                    showProcessingDialog("Capturing...");
+                    started = true;
+                    taking_picture = true;
+                    cam.takePicture();
                 }
 
-                if(can_start){
-                    if(started){
-                        can_start_view.setVisibility(View.VISIBLE);
-                    }
-                }else{
-                    can_start_view.setVisibility(View.INVISIBLE);
-                }
-
-                if(started){
-                    if(can_take_picture){
-                        startButton.setVisibility(View.VISIBLE);
-                    }else{
-                        startButton.setVisibility(View.INVISIBLE);
-                    }
-                }
-
-                Log.i("positionspotx", Float.toString(spot_left.getX()));
-                Log.i("positionspoty", Float.toString(spot_left.getY()));
             }
 
             @Override
@@ -275,6 +327,11 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
                     pitch = (float) (-Math.PI/2 - result[1]);
                     started_pitch = true;
                 }
+
+//                mBallView.mY = patern_image.getY() + 82/2 - 5; // center the ball
+//                mBallView.mX = 60 + 435;
+                Log.i("POSY", String.valueOf(patern_image.getY()));
+                Log.i("POSX", String.valueOf(patern_image.getX()));
             }
 
             @Override
@@ -286,21 +343,73 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
     }
 
     @Override
+    public void onStart(){
+        super.onStart();
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivityIntegration.this);
+        builder.setTitle("Prise de vue")
+                .setMessage("Allez dans la première pièce et placez-vous au centre de la pièce.")
+                .setCancelable(false)
+                .setPositiveButton("J'ai compris", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        String[] testItem = {"test1", "Test2", "Test3", "Test4"};
+                        AlertDialog.Builder items = new AlertDialog.Builder(MainActivityIntegration.this);
+                        items.setTitle("Test")
+                                .setItems(testItem, new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        // The 'which' argument contains the index position
+                                        // of the selected item
+                                    }
+                                });
+                        AlertDialog showItem = items.create();
+                        showItem.show();
+
+                        can_start = true;
+                    }
+                })
+                .setNegativeButton("Annuler", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        Intent mainIntent = new Intent(MainActivityIntegration.this, MainActivity.class);
+                        startActivity(mainIntent);
+                    }
+                });
+        //Creating dialog box
+        AlertDialog dialog  = builder.create();
+        dialog.show();
+    }
+
+    @Override
     public void onResume() {
 
         super.onResume();
-        View bar2 = findViewById(R.id.bar2);
-        int[] positions_bar1 = new int[2];
-        bar2.getLocationInWindow(positions_bar1);
+//        View bar2 = findViewById(R.id.bar2);
+//        int[] positions_bar1 = new int[2];
+//        bar2.getLocationInWindow(positions_bar1);
 
 
         //x_init = positions_bar1[0];
         //y_init = positions_bar1[1];
-        Log.i("positionbar", Arrays.toString(positions_bar1));
-        Log.i("positionleft", Float.toString(spot_right.getX()));
-        Log.i("positionleft", Float.toString(spot_right.getY()));
+//        Log.i("positionbar", Arrays.toString(positions_bar1));
+//        Log.i("positionleft", Float.toString(spot_right.getX()));
+//        Log.i("positionleft", Float.toString(spot_right.getY()));
         sensorManager.registerListener(rotationVectorEventListener, rotationVectorSensor, SensorManager.SENSOR_DELAY_NORMAL);
         sensorManager.registerListener(gyroscopeEventListener, gyroscopeSensor, SensorManager.SENSOR_DELAY_GAME);
+
+        mTmr = new Timer();
+        mTsk = new TimerTask() {
+            public void run() {
+
+                //redraw ball. Must run in background thread to prevent thread lock.
+                RedrawHandler.post(new Runnable() {
+                    public void run() {
+                        mBallView.invalidate();
+                        mDegreeView.invalidate();
+                    }});
+            }}; // TimerTask
+
+        mTmr.schedule(mTsk,10,10); //start timer
 
         ti = Calendar.getInstance().getTimeInMillis(); // Initialize the time for calculating angle with gyroscope
     }
@@ -437,8 +546,8 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
         MatOfByte inputframe = new MatOfByte(bytes);
         Mat result = Imgcodecs.imdecode(inputframe, Imgcodecs.CV_LOAD_IMAGE_UNCHANGED);
         listImage.add(result);
-        TextView nbImages = findViewById(R.id.nbImages);
-        xValue.setText(Integer.toString(listImage.size()));
+//        TextView nbImages = findViewById(R.id.nbImages);
+//        xValue.setText(Integer.toString(listImage.size()));
         image.close();
 
         Log.i("IMAGESIZE", Integer.toString(listImage.size()));
@@ -470,7 +579,7 @@ public class MainActivity extends Activity implements EZCamCallback, View.OnLong
 
     private void showProcessingDialog(String m) {
         cam.stopPreview();
-        ringProgressDialog = ProgressDialog.show(MainActivity.this, "", m, true);
+        ringProgressDialog = ProgressDialog.show(MainActivityIntegration.this, "", m, true);
         ringProgressDialog.setCancelable(false);
     }
 

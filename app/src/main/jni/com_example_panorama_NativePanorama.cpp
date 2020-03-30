@@ -57,7 +57,18 @@ JNIEXPORT void JNICALL Java_com_example_panorama_NativePanorama_processPanorama
         resize(curimage, curimage, Size(scale * curimage.rows, scale * curimage.cols));
 
         // Save as PNG and load
-        imwrite
+        vector<int> compression_params;
+        compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+        compression_params.push_back(9);
+
+        /*std::string filepath = "/storage/sdcard0/saved_images_panorama/";
+        std::string fileName = "outputStitchingv";
+        fileName += NumberToString(k);
+        fileName += ".png";
+
+        filepath += fileName;
+        imwrite("test.png", curimage, compression_params);*/
+
         imgVec.push_back(curimage);
 
       }
