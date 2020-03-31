@@ -167,7 +167,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
     private float initial_x = 60;
     private float final_y = 100 + 82/2 - 5;
     private float final_x = 60 + 435;
-    private int progression = 0;
+    private int progression = -15; // because we will increase it by 15 for every capture, we reserve -15 for the first capture so it can start with 0
 
     /*** Fin Variables integration design ***/
 
@@ -184,6 +184,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         loading = findViewById(R.id.loading);
         dateFormat = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.getDefault());
 
+        listImage = new ArrayList<>();
         /**
          * Obtenir les éléments de l'interface
          */
@@ -311,6 +312,11 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
                     }
 
                     if(Math.abs(Math.abs(Math.toDegrees(roll)) - 15) < 0.3 && Math.abs(Math.toDegrees(pitch)) < 3){
+                        if(progression == 360 - 15){
+                            showProcessingDialog("Capturing and stitching...");
+                        }else{
+                            showProcessingDialog("Capturing...");
+                        }
                         taking_picture = true;
                         cam.takePicture();
                     }
@@ -325,7 +331,6 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
                     started = true;
                     taking_picture = true;
                     cam.takePicture();
-
                 }
 
             }
@@ -438,7 +443,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
 
     @Override
     public boolean onLongClick(View v) {
-        cam.takePicture();
+//        cam.takePicture();
         return false;
     }
 
@@ -461,8 +466,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         }
     }
 
-    public void stitch(View v){
-        showProcessingDialog("Stitching en cours...");
+    public void stitch(){
         Context context = this.getBaseContext();
         String p = context.getExternalFilesDir(null).getAbsolutePath();
 //        p = "/storage/sdcard0/a_stitching";
@@ -552,10 +556,12 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         closeProcessingDialog();
     }
 
+    public void stitch(View v){
+        this.stitch();
+    }
+
     @Override
     public void onPicture(Image image) {
-        closeProcessingDialog();
-        Toast.makeText(getApplicationContext(), "Taken picture " + Integer.toString(listImage.size() + 1), Toast.LENGTH_SHORT).show();
 
         cam.stopPreview();
 
@@ -581,8 +587,17 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         progression += 15;
         gauge.setValue(progression);
 
-        ToneGenerator toneG = new ToneGenerator(AudioManager.STREAM_ALARM, 100);
-        toneG.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 200);
+        if(progression == 360){
+            stitch();
+            started = false;
+            can_start = false;
+        }
+
+        closeProcessingDialog();
+
+        if(started){
+            Toast.makeText(getApplicationContext(), "Taken picture " + Integer.toString(listImage.size()), Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override

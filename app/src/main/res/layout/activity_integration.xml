@@ -54,13 +54,12 @@
         android:src="@drawable/close_foreground"
         android:id="@+id/take_picture"/>
 
-    <Button
-        android:id="@+id/button2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|right"
-        android:text="Stitch"
-        android:onClick="stitch"/>
-
+<!--    <Button-->
+<!--        android:id="@+id/button2"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_gravity="bottom|right"-->
+<!--        android:text="Stitch"-->
+<!--        android:onClick="stitch"/>-->
 
 </FrameLayout>
