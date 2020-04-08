@@ -44,7 +44,7 @@ public class BallView extends View {
 //        if (mZ <= 0.69 && mZ >= 70) {
 //            mY = 85;
 //        }
-        ImageView patern_image = findViewById(R.id.patern_image);
+//        ImageView patern_image = findViewById(R.id.patern_image);
         float initial_y = 100 + 82/2 - 5;
         float initial_x = 60;
         float final_y = 100 + 82/2 - 5;

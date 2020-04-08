@@ -25,10 +25,13 @@ import android.hardware.camera2.CaptureRequest;
 import android.media.AudioManager;
 import android.media.Image;
 import android.media.ToneGenerator;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.util.Log;
+import android.util.Range;
+import android.util.Rational;
 import android.view.Display;
 import android.view.TextureView;
 import android.view.View;
@@ -67,6 +70,15 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import org.opencv.core.Mat;
+
+import static android.hardware.camera2.CameraMetadata.CONTROL_AE_MODE_OFF;
+import static android.hardware.camera2.CameraMetadata.CONTROL_MODE_AUTO;
+import static android.hardware.camera2.CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION;
+import static android.hardware.camera2.CaptureRequest.CONTROL_AE_LOCK;
+import static android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE;
+import static android.hardware.camera2.CaptureRequest.CONTROL_MODE;
+import static android.hardware.camera2.CaptureRequest.FLASH_MODE;
+import static android.hardware.camera2.CaptureRequest.SENSOR_EXPOSURE_TIME;
 import static org.opencv.imgcodecs.Imgcodecs.imwrite;
 
 import org.opencv.android.Utils;
@@ -79,6 +91,8 @@ import me.aflak.ezcam.EZCamCallback;
 import pl.pawelkleczkowski.customgauge.CustomGauge;
 
 public class MainActivityIntegration extends Activity implements EZCamCallback, View.OnLongClickListener{
+    private static final int ANGLE = 30;
+
     static {
         System.loadLibrary("opencv_java3");
         System.loadLibrary("MyLib");
@@ -167,7 +181,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
     private float initial_x = 60;
     private float final_y = 100 + 82/2 - 5;
     private float final_x = 60 + 435;
-    private int progression = -15; // because we will increase it by 15 for every capture, we reserve -15 for the first capture so it can start with 0
+    private int progression = -15;
 
     /*** Fin Variables integration design ***/
 
@@ -189,6 +203,8 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
          * Obtenir les éléments de l'interface
          */
         textureView = (TextureView)findViewById(R.id.textureView);
+        gauge = findViewById(R.id.gauge2);
+        patern_image = findViewById(R.id.patern_image);
 //        startButton = (Button)findViewById(R.id.startButton);
 //        stitchingButton = (Button)findViewById(R.id.stitchingButton);
 //        txtlist = (TextView)findViewById(R.id.sensorslist);
@@ -208,10 +224,39 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         String id = cam.getCamerasList().get(CameraCharacteristics.LENS_FACING_BACK);
         cam.selectCamera(id);
 
+
+        boolean flash_available = cam.getCharacteristic(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+        if(flash_available){
+            Log.i("Flash", "Available");
+        }else{
+            Log.i("Flash", "Not available");
+        }
+
+        Rational compensation_range = cam.getCharacteristic(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP);
+        Log.i("compensation_step", compensation_range.toString());
+
+        int[] control_ae_available_modes = cam.getCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_MODES);
+        Log.i("available_modes", Arrays.toString(control_ae_available_modes));
+
+        Range r = cam.getCharacteristic(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE);
+        if(r == null){
+            Log.i("compensation_range", "Null");
+        }else{
+            Log.i("compensation_range", r.toString());
+        }
+
+        int[] manual_sensor_capability = cam.getCharacteristic(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
+        if(manual_sensor_capability == null){
+            Log.i("manual_sensor", "Null");
+        }else{
+            Log.i("manual_sensor", Arrays.toString(manual_sensor_capability));
+        }
+
         Dexter.withActivity(MainActivityIntegration.this).withPermission(Manifest.permission.CAMERA).withListener(new PermissionListener() {
             @Override
             public void onPermissionGranted(PermissionGrantedResponse response) {
                 cam.open(CameraDevice.TEMPLATE_PREVIEW, textureView);
+
             }
 
             @Override
@@ -272,11 +317,16 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         mainView.addView(mBallView);
         mainView.addView(mDegreeView);
 
+        float patern_image_y = patern_image.getY();
+        float patern_image_x = patern_image.getX();
 
-        gauge = findViewById(R.id.gauge2);
-        patern_image = findViewById(R.id.patern_image);
+//        initial_y = patern_image_y + 82/2 - 5;
+//        initial_x = -patern_image_x;
+//        final_y = patern_image_y + 82/2 - 5;
+//        final_x = -patern_image_x + 435;
 
-
+        Log.i("POSY", String.valueOf(patern_image_y));
+        Log.i("POSX", String.valueOf(patern_image_x));
         mBallView.mY = initial_y;
         mBallView.mX = initial_x;
         mDegreeView.mY = initial_y;
@@ -312,7 +362,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
                     }
 
                     if(Math.abs(Math.abs(Math.toDegrees(roll)) - 15) < 0.3 && Math.abs(Math.toDegrees(pitch)) < 3){
-                        if(progression == 360 - 15){
+                        if(progression == ANGLE - 15){
                             showProcessingDialog("Capturing and stitching...");
                         }else{
                             showProcessingDialog("Capturing...");
@@ -357,8 +407,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
 
 //                mBallView.mY = patern_image.getY() + 82/2 - 5; // center the ball
 //                mBallView.mX = 60 + 435;
-                Log.i("POSY", String.valueOf(patern_image.getY()));
-                Log.i("POSX", String.valueOf(patern_image.getX()));
+
             }
 
             @Override
@@ -398,8 +447,8 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
                 .setNegativeButton("Annuler", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        Intent mainIntent = new Intent(MainActivityIntegration.this, MainActivity.class);
-                        startActivity(mainIntent);
+//                        Intent mainIntent = new Intent(MainActivityIntegration.this, MainActivity.class);
+//                        startActivity(mainIntent);
                     }
                 });
         //Creating dialog box
@@ -450,7 +499,12 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
     @Override
     public void onCameraReady() {
         cam.setCaptureSetting(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE, CameraMetadata.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY);
-        cam.startPreview();
+
+        cam.setCaptureSetting(CONTROL_MODE, CameraMetadata.CONTROL_MODE_OFF);
+        cam.setCaptureSetting(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF);
+        cam.setCaptureSetting(CaptureRequest.SENSOR_SENSITIVITY, 100);
+        cam.setCaptureSetting(CaptureRequest.SENSOR_EXPOSURE_TIME, 1000000000L);
+        cam.restartPreview();
 
         textureView.setOnLongClickListener(this);
     }
@@ -486,6 +540,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
             // Call the OpenCV C++ Code to perform stitching process
             NativePanorama.processPanorama(tempobjadr, result.getNativeObjAddr());
 
+            NativePanorama.crop(result.getNativeObjAddr());
             // Second approach
 //            int elems = listImage.size();
 //            long[] tempobjadr = new long[elems];
@@ -544,7 +599,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
 //            NativePanorama.processPanorama(resultsAdr, result.getNativeObjAddr());
 
             // Not changing
-            final String fileName = p+ "/stitch.png";
+            final String fileName = p+ "/stitch.jpg";
 
 //            final String fileName = "";
             Imgcodecs.imwrite(fileName, result);
@@ -565,7 +620,16 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
 
         cam.stopPreview();
 
-
+        Context context = getBaseContext();
+        String p = context.getExternalFilesDir(null).getAbsolutePath();
+//        String filename = "image" + String.valueOf(listImage.size()) + ".jpg";
+//        File file = new File(p, filename);
+//        try {
+//            EZCam.saveImage(image, file);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//        listImage.add(new Mat());
         // Testing JavaCV
         ByteBuffer buffer = image.getPlanes()[0].getBuffer();
         byte[] bytes = new byte[buffer.remaining()];
@@ -574,11 +638,16 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         MatOfByte inputframe = new MatOfByte(bytes);
         Mat result = Imgcodecs.imdecode(inputframe, Imgcodecs.CV_LOAD_IMAGE_UNCHANGED);
         listImage.add(result);
-//        TextView nbImages = findViewById(R.id.nbImages);
-//        xValue.setText(Integer.toString(listImage.size()));
+
         image.close();
 
         Log.i("IMAGESIZE", Integer.toString(listImage.size()));
+
+        cam.setCaptureSetting(CONTROL_MODE, CameraMetadata.CONTROL_MODE_OFF);
+        cam.setCaptureSetting(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF);
+        cam.setCaptureSetting(CaptureRequest.SENSOR_SENSITIVITY, 100);
+        cam.setCaptureSetting(CaptureRequest.SENSOR_EXPOSURE_TIME, 1000000000L);
+
         cam.restartPreview();
 
         taking_picture = false; // finished
@@ -587,7 +656,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         progression += 15;
         gauge.setValue(progression);
 
-        if(progression == 360){
+        if(progression == ANGLE) {
             stitch();
             started = false;
             can_start = false;
@@ -598,6 +667,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         if(started){
             Toast.makeText(getApplicationContext(), "Taken picture " + Integer.toString(listImage.size()), Toast.LENGTH_SHORT).show();
         }
+
     }
 
     @Override
@@ -628,6 +698,50 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
 
     private void closeProcessingDialog() {
         cam.startPreview();
+
+        cam.setCaptureSetting(CONTROL_MODE, CameraMetadata.CONTROL_MODE_OFF);
+        cam.setCaptureSetting(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF);
+        cam.setCaptureSetting(CaptureRequest.SENSOR_SENSITIVITY, 100);
+        cam.setCaptureSetting(CaptureRequest.SENSOR_EXPOSURE_TIME, 1000000000L);
+
+        cam.restartPreview();
         ringProgressDialog.dismiss();
     }
+
+
+    // Asynchronous task
+
+    class MyAsyncTask extends AsyncTask<Void, Integer, String>{
+
+        Integer count = 0;
+        @Override
+        protected String doInBackground(Void... voids) {
+            try {
+                while (count < 5) {
+                    //incrémente le compteur
+                    count++;
+                    // Faire une pause
+                    Thread.sleep(1000);
+                    //Donne son avancement en appelant onProgressUpdate
+                    publishProgress(count);
+                }
+            } catch (InterruptedException t) {
+                // Gérer l'exception et terminer le traitement
+                return ("The sleep operation failed");
+            }
+            return ("return object when task is finished");
+        }
+        @Override
+        protected void onProgressUpdate(Integer... diff) {
+
+        }
+
+        // Surcharge de la méthode onPostExecute (s'exécute dans la Thread de l'IHM)
+        @Override
+        protected void onPostExecute(String message) {
+            // Mettre à jour l'IHM
+            Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+        }
+    }
+
 }

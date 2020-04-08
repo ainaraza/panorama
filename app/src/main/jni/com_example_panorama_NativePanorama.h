@@ -15,6 +15,9 @@ extern "C" {
 JNIEXPORT void JNICALL Java_com_example_panorama_NativePanorama_processPanorama
   (JNIEnv *, jclass, jlongArray, jlong);
 
+JNIEXPORT void JNICALL Java_com_example_panorama_NativePanorama_crop
+  (JNIEnv *, jclass, jlong);
+
 #ifdef __cplusplus
 }
 #endif

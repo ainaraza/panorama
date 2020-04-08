@@ -378,7 +378,7 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
             magnetic = new float[9];
             SensorManager.getRotationMatrix(gravity, magnetic, accels, mags);
             float[] outGravity = new float[9];
-            SensorManager.remapCoordinateSystem(gravity, SensorManager.AXIS_X,SensorManager.AXIS_Z, outGravity);
+            SensorManager.remapCoordinateSystem(gravity, SensorManager.AXIS_Z,SensorManager.AXIS_Y, outGravity);
             SensorManager.getOrientation(outGravity, values);
             //SensorManager.getOrientation(gravity, values);
 
