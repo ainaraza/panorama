@@ -65,8 +65,9 @@ JNIEXPORT void JNICALL Java_com_example_panorama_NativePanorama_processPanorama
         // Convert to a 3 channel Mat to use with Stitcher module
         //cvtColor(curimage, newimage, CV_BGRA2RGB);
         // Reduce the resolution for fast computation
-        float scale = 1000.0f / curimage.rows;
-        resize(curimage, curimage, Size(scale * curimage.rows, scale * curimage.cols));
+
+        //float scale = 1000.0f / curimage.rows;
+        //resize(curimage, curimage, Size(scale * curimage.rows, scale * curimage.cols));
 
         // Save as PNG and load
 

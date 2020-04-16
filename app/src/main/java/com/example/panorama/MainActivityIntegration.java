@@ -2,6 +2,7 @@ package com.example.panorama;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.NativeActivity;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -56,6 +57,8 @@ import com.karumi.dexter.listener.single.PermissionListener;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.annotation.Native;
 import java.nio.ByteBuffer;
@@ -84,6 +87,7 @@ import static org.opencv.imgcodecs.Imgcodecs.imwrite;
 import org.opencv.android.Utils;
 import org.opencv.core.MatOfByte;
 import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
 import org.w3c.dom.Text;
 
 import me.aflak.ezcam.EZCam;
@@ -91,7 +95,7 @@ import me.aflak.ezcam.EZCamCallback;
 import pl.pawelkleczkowski.customgauge.CustomGauge;
 
 public class MainActivityIntegration extends Activity implements EZCamCallback, View.OnLongClickListener{
-    private static final int ANGLE = 30;
+    private static final int ANGLE = 360;
 
     static {
         System.loadLibrary("opencv_java3");
@@ -182,6 +186,12 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
     private float final_y = 100 + 82/2 - 5;
     private float final_x = 60 + 435;
     private int progression = -15;
+    private boolean can_stitch = false;
+
+    // Variables for the async stitching
+    private int imageDispo = -1; // index in list of the image that is available (using onPicture)
+    private int imageWaitedFor = 1; // image waited for the Async Stitching Task
+    private Mat finalResult; // the final result that will store the stitched panorama
 
     /*** Fin Variables integration design ***/
 
@@ -368,7 +378,14 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
                             showProcessingDialog("Capturing...");
                         }
                         taking_picture = true;
-                        cam.takePicture();
+
+                        // Changing with Async
+//                        cam.takePicture();
+                        try {
+                            takePictureEssai();
+                        } catch (FileNotFoundException e) {
+                            e.printStackTrace();
+                        }
                     }
 
                     mBallView.mY = initial_y - (float) Math.toDegrees(pitch) * 5;
@@ -379,8 +396,14 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
                 if(!started && can_start && (int) Math.toDegrees(pitch) == 0){
                     showProcessingDialog("Capturing...");
                     started = true;
-                    taking_picture = true;
-                    cam.takePicture();
+                    // Changing with Async
+//                     cam.takePicture();
+//                    new TakePictureAsyncTask().execute();
+                    try {
+                        takePictureEssai();
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    }
                 }
 
             }
@@ -442,6 +465,8 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
                         showItem.show();
 
                         can_start = true;
+                        cam.takePicture();
+                        Log.i("MyApp", "AlertDialog: ao");
                     }
                 })
                 .setNegativeButton("Annuler", new DialogInterface.OnClickListener() {
@@ -486,7 +511,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
             }}; // TimerTask
 
         mTmr.schedule(mTsk,10,10); //start timer
-
+//        new MyAsyncTask().execute();
         ti = Calendar.getInstance().getTimeInMillis(); // Initialize the time for calculating angle with gyroscope
     }
 
@@ -500,10 +525,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
     public void onCameraReady() {
         cam.setCaptureSetting(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE, CameraMetadata.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY);
 
-        cam.setCaptureSetting(CONTROL_MODE, CameraMetadata.CONTROL_MODE_OFF);
-        cam.setCaptureSetting(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF);
-        cam.setCaptureSetting(CaptureRequest.SENSOR_SENSITIVITY, 100);
-        cam.setCaptureSetting(CaptureRequest.SENSOR_EXPOSURE_TIME, 1000000000L);
+        cam.setCaptureSetting(CONTROL_AE_LOCK, true);
         cam.restartPreview();
 
         textureView.setOnLongClickListener(this);
@@ -530,8 +552,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
             int elems = listImage.size();
             long[] tempobjadr = new long[elems];
             Log.i("LEN", Integer.toString(tempobjadr.length));
-//
-//
+
             for (int i = 0; i < elems; i++) {
                 tempobjadr[i] = listImage.get(i).getNativeObjAddr();
             }
@@ -541,6 +562,7 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
             NativePanorama.processPanorama(tempobjadr, result.getNativeObjAddr());
 
             NativePanorama.crop(result.getNativeObjAddr());
+
             // Second approach
 //            int elems = listImage.size();
 //            long[] tempobjadr = new long[elems];
@@ -617,56 +639,62 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
 
     @Override
     public void onPicture(Image image) {
-
-        cam.stopPreview();
-
-        Context context = getBaseContext();
-        String p = context.getExternalFilesDir(null).getAbsolutePath();
-//        String filename = "image" + String.valueOf(listImage.size()) + ".jpg";
-//        File file = new File(p, filename);
-//        try {
-//            EZCam.saveImage(image, file);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//        listImage.add(new Mat());
-        // Testing JavaCV
-        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-        byte[] bytes = new byte[buffer.remaining()];
-        buffer.get(bytes);
-
-        MatOfByte inputframe = new MatOfByte(bytes);
-        Mat result = Imgcodecs.imdecode(inputframe, Imgcodecs.CV_LOAD_IMAGE_UNCHANGED);
-        listImage.add(result);
-
         image.close();
-
-        Log.i("IMAGESIZE", Integer.toString(listImage.size()));
-
-        cam.setCaptureSetting(CONTROL_MODE, CameraMetadata.CONTROL_MODE_OFF);
-        cam.setCaptureSetting(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF);
-        cam.setCaptureSetting(CaptureRequest.SENSOR_SENSITIVITY, 100);
-        cam.setCaptureSetting(CaptureRequest.SENSOR_EXPOSURE_TIME, 1000000000L);
-
-        cam.restartPreview();
-
-        taking_picture = false; // finished
-        roll = 0;
-
-        progression += 15;
-        gauge.setValue(progression);
-
-        if(progression == ANGLE) {
-            stitch();
-            started = false;
-            can_start = false;
-        }
-
-        closeProcessingDialog();
-
-        if(started){
-            Toast.makeText(getApplicationContext(), "Taken picture " + Integer.toString(listImage.size()), Toast.LENGTH_SHORT).show();
-        }
+//        Log.i("MyApp", "Took picture");
+////        cam.stopPreview();
+//
+//        Context context = getBaseContext();
+//        String p = context.getExternalFilesDir(null).getAbsolutePath();
+////        String filename = "image" + String.valueOf(listImage.size()) + ".jpg";
+////        File file = new File(p, filename);
+////        try {
+////            EZCam.saveImage(image, file);
+////        } catch (IOException e) {
+////            e.printStackTrace();
+////        }
+////        listImage.add(new Mat());
+//        // Testing JavaCV
+//        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+//        byte[] bytes = new byte[buffer.remaining()];
+//        buffer.get(bytes);
+//
+//        MatOfByte inputframe = new MatOfByte(bytes);
+//        Mat result = Imgcodecs.imdecode(inputframe, Imgcodecs.CV_LOAD_IMAGE_UNCHANGED);
+//        listImage.add(result);
+//
+//        imageDispo = listImage.size() - 1;
+//
+//        image.close();
+//
+//        Log.i("IMAGESIZE", Integer.toString(listImage.size()));
+//
+////        cam.setCaptureSetting(CONTROL_MODE, CameraMetadata.CONTROL_MODE_OFF);
+////        cam.setCaptureSetting(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF);
+////        cam.setCaptureSetting(CaptureRequest.SENSOR_SENSITIVITY, 100);
+////        cam.setCaptureSetting(CaptureRequest.SENSOR_EXPOSURE_TIME, 1000000000L);
+//        cam.setCaptureSetting(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CameraMetadata.CONTROL_AE_PRECAPTURE_TRIGGER_IDLE);
+//        cam.restartPreview();
+//
+//        taking_picture = false; // finished
+//        roll = 0;
+//
+//        progression += 15;
+//        gauge.setValue(progression);
+//
+//        if(progression == ANGLE) {
+////            stitch();
+////            new MyAsyncTask().execute();
+//
+//            started = false;
+//            can_start = false;
+//        }else{
+//            closeProcessingDialog();
+//        }
+//
+//
+//        if(started){
+//            Toast.makeText(getApplicationContext(), "Taken picture " + Integer.toString(listImage.size()), Toast.LENGTH_SHORT).show();
+//        }
 
     }
 
@@ -691,20 +719,12 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
     }
 
     private void showProcessingDialog(String m) {
-        cam.stopPreview();
+//        cam.stopPreview();
         ringProgressDialog = ProgressDialog.show(MainActivityIntegration.this, "", m, true);
         ringProgressDialog.setCancelable(false);
     }
 
     private void closeProcessingDialog() {
-        cam.startPreview();
-
-        cam.setCaptureSetting(CONTROL_MODE, CameraMetadata.CONTROL_MODE_OFF);
-        cam.setCaptureSetting(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF);
-        cam.setCaptureSetting(CaptureRequest.SENSOR_SENSITIVITY, 100);
-        cam.setCaptureSetting(CaptureRequest.SENSOR_EXPOSURE_TIME, 1000000000L);
-
-        cam.restartPreview();
         ringProgressDialog.dismiss();
     }
 
@@ -716,20 +736,40 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         Integer count = 0;
         @Override
         protected String doInBackground(Void... voids) {
-            try {
-                while (count < 5) {
-                    //incrémente le compteur
-                    count++;
-                    // Faire une pause
-                    Thread.sleep(1000);
-                    //Donne son avancement en appelant onProgressUpdate
-                    publishProgress(count);
+            finalResult = new Mat();
+            while(imageWaitedFor < (int)(ANGLE/15) + 1){
+                if(imageDispo >= imageWaitedFor){ // if the image waited for is already available
+                    if(imageWaitedFor == 1){
+                        long[] temp = new long[2];
+                        temp[0] = listImage.get(0).getNativeObjAddr();
+                        temp[1] = listImage.get(1).getNativeObjAddr();
+                        Log.i("AsyncStitch", "Stitching image 0 with image 1");
+                        NativePanorama.processPanorama(temp, finalResult.getNativeObjAddr());
+                        Log.i("AsyncStitch", "Completed");
+                    }else{
+                        long[] temp = new long[2];
+                        temp[0] = finalResult.getNativeObjAddr();
+                        temp[1] = listImage.get(imageWaitedFor).getNativeObjAddr();
+                        Log.i("AsyncStitch", "Stitching result with image " + Integer.valueOf(imageWaitedFor));
+                        NativePanorama.processPanorama(temp, finalResult.getNativeObjAddr());
+                        Log.i("AsyncStitch", "Completed");
+                    }
+                    imageWaitedFor++;
                 }
-            } catch (InterruptedException t) {
-                // Gérer l'exception et terminer le traitement
-                return ("The sleep operation failed");
             }
-            return ("return object when task is finished");
+
+            Context context = getApplicationContext();
+            String p = context.getExternalFilesDir(null).getAbsolutePath();
+            Log.i("AsyncStitch", "filepath: " + p);
+
+
+            final String fileName = p+ "/stitchAsync.jpg";
+
+            Imgcodecs.imwrite(fileName, finalResult);
+
+            listImage.clear();
+
+            return ("Return object");
         }
         @Override
         protected void onProgressUpdate(Integer... diff) {
@@ -740,8 +780,48 @@ public class MainActivityIntegration extends Activity implements EZCamCallback, 
         @Override
         protected void onPostExecute(String message) {
             // Mettre à jour l'IHM
-            Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+//            Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+            Log.i("AsyncThread", "Async task finished");
+            closeProcessingDialog();
         }
     }
 
+    private void takePictureEssai() throws FileNotFoundException {
+//        showProcessingDialog("Capturing...");
+        Bitmap image = textureView.getBitmap();
+        String p = this.getApplicationContext().getExternalFilesDir(null).getAbsolutePath();
+        String filename =  p + "/fetsy" + listImage.size() + ".jpg";
+        FileOutputStream out = new FileOutputStream((filename));
+        image.compress(Bitmap.CompressFormat.JPEG, 100, out);
+
+        Log.i("MyApp", "Took picture");
+
+        Mat result = new Mat();
+        Utils.bitmapToMat(image, result);
+        Imgproc.cvtColor(result, result, Imgproc.COLOR_BGR2RGB);
+        Imgcodecs.imwrite(p + "/mat" + listImage.size() + ".jpg", result);
+        listImage.add(result);
+
+        imageDispo = listImage.size() - 1;
+
+        Log.i("IMAGESIZE", Integer.toString(listImage.size()));
+
+        taking_picture = false; // finished
+        roll = 0;
+
+        progression += 15;
+        gauge.setValue(progression);
+
+        if(progression == ANGLE) {
+            stitch();
+            started = false;
+            can_start = false;
+        }else{
+            closeProcessingDialog();
+        }
+
+        if(started){
+            Toast.makeText(getApplicationContext(), "Taken picture " + Integer.toString(listImage.size()), Toast.LENGTH_SHORT).show();
+        }
+    }
 }

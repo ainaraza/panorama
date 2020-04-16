@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Camera;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.SurfaceTexture;
@@ -32,6 +33,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 
 import android.util.Log;
+import android.util.Range;
 import android.util.Size;
 import android.util.SparseIntArray;
 
@@ -271,33 +273,40 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
         startButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 clicked_once += 1;
-                if (takeone == true && pitchIsOK == true) {
-                    //Toast.makeText(MainActivity.this, "Capture du premier image", Toast.LENGTH_SHORT).show();
-                    try {
-                        takePicture();
-                        Toast.makeText(MainActivityCelio.this, "Capture du premier image faite", Toast.LENGTH_SHORT).show();
-                        nombre_photo = 1;
-                        angle = 15;
-
-                    } catch (CameraAccessException e) {
-                        e.printStackTrace();
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    takeone = false;
-                    startClicked = true;
-
-                    //if (v.getId() == R.id.startButton) {
-                    //v.setBackgroundResource(R.drawable.start_green);
-                    //
-                    //}
-                    notif.setText("Utiliser la Bille verte pour la suite!");
-                }
-
-                if (clicked_once > 1) {
-                    Toast.makeText(MainActivityCelio.this, "Première capture déjà faite, n'appuyez plus ce bouton. Utilisez la jauge du bille vers vers la bille blanche", Toast.LENGTH_LONG).show();
+//                if (takeone == true && pitchIsOK == true) {
+//                    //Toast.makeText(MainActivity.this, "Capture du premier image", Toast.LENGTH_SHORT).show();
+//                    try {
+//                        takePicture();
+//                        Toast.makeText(MainActivityCelio.this, "Capture du premier image faite", Toast.LENGTH_SHORT).show();
+//                        nombre_photo = 1;
+//                        angle = 15;
+//
+//                    } catch (CameraAccessException e) {
+//                        e.printStackTrace();
+//                    } catch (FileNotFoundException e) {
+//                        e.printStackTrace();
+//                    } catch (IOException e) {
+//                        e.printStackTrace();
+//                    }
+//                    takeone = false;
+//                    startClicked = true;
+//
+//                    //if (v.getId() == R.id.startButton) {
+//                    //v.setBackgroundResource(R.drawable.start_green);
+//                    //
+//                    //}
+//                    notif.setText("Utiliser la Bille verte pour la suite!");
+//                }
+//
+//                if (clicked_once > 1) {
+//                    Toast.makeText(MainActivityCelio.this, "Première capture déjà faite, n'appuyez plus ce bouton. Utilisez la jauge du bille vers vers la bille blanche", Toast.LENGTH_LONG).show();
+//                }
+                try {
+                    takePicture();
+                } catch (CameraAccessException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
         });
@@ -526,9 +535,16 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
         texture.setDefaultBufferSize(imageDimension.getWidth(), imageDimension.getHeight());
 
         Surface surface = new Surface(texture);
-        captureRequestBuilder = cameraDevice.createCaptureRequest(cameraDevice.TEMPLATE_PREVIEW);
+        captureRequestBuilder = cameraDevice.createCaptureRequest(cameraDevice.TEMPLATE_STILL_CAPTURE);
         captureRequestBuilder.addTarget(surface);
 
+
+//        captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_OFF);
+//        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
+//        captureRequestBuilder.set(CaptureRequest.SENSOR_EXPOSURE_TIME,Long.valueOf("22000000"));
+//        captureRequestBuilder.set(CaptureRequest.SENSOR_SENSITIVITY,200);
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CameraMetadata.CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL);
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
         cameraDevice.createCaptureSession(Arrays.asList(surface), new CameraCaptureSession.StateCallback() {
             @Override
             public void onConfigured(CameraCaptureSession session) {
@@ -552,7 +568,14 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
 
     private void updatePreview() throws CameraAccessException {
         if (cameraDevice == null) return;
-        captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+//        captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+//        captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_OFF);
+//        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
+//        captureRequestBuilder.set(CaptureRequest.SENSOR_EXPOSURE_TIME,Long.valueOf("22000000"));
+//        captureRequestBuilder.set(CaptureRequest.SENSOR_SENSITIVITY,200);
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CameraMetadata.CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL);
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_LOCK, true);
+
         cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(), null, mBackgroundHandler);
     }
 
@@ -562,7 +585,20 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
         cameraId = cameraManager.getCameraIdList()[0];
         CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
         StreamConfigurationMap map = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
+        // Request some capabilities
+        Integer supported_hardware_level = cameraCharacteristics.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL);
+        Log.i("Characteristics", "Hardware level: " + Integer.valueOf(supported_hardware_level));
+
+//        Range exposure_time_range = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE);
+//        Log.i("Characteristics", "Exposure time range: " + exposure_time_range.toString());
+
         imageDimension = map.getOutputSizes(SurfaceTexture.class)[0];
+
+        for(Size s : map.getOutputSizes(SurfaceTexture.class)){
+            Log.i("CameraSizes", "Camera of w = " + s.getWidth() + " and h = " + s.getHeight());
+        }
+
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
                 && ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(MainActivityCelio.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 101);
@@ -575,11 +611,13 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
         if (cameraDevice == null) {
             return;
         }
+        Log.i("MyApp", "Picture: taken");
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraDevice.getId());
         Size[] jpegSizes = null;
 
         jpegSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(ImageFormat.JPEG);
+
 
         int width = 640;
         int height = 480;
@@ -597,7 +635,13 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
 
         final CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
         captureBuilder.addTarget(reader.getSurface());
-        captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+//        captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+//        captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_OFF);
+//        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
+//        captureRequestBuilder.set(CaptureRequest.SENSOR_EXPOSURE_TIME,Long.valueOf("22000000"));
+//        captureRequestBuilder.set(CaptureRequest.SENSOR_SENSITIVITY,200);
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CameraMetadata.CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL);
+
         int rotation = getWindowManager().getDefaultDisplay().getRotation();
         captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
 
@@ -610,7 +654,7 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
         File directory = new File(sdCard.getAbsolutePath() + "/Pictures");
         file = new File(Environment.getExternalStorageDirectory() + "/Pictures/pano_" + ts + ".jpg");
 
-
+        Log.i("MyApp", sdCard.getAbsolutePath());
         ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
             @Override
             public void onImageAvailable(ImageReader reader) {
@@ -651,6 +695,7 @@ public class MainActivityCelio extends AppCompatActivity implements SensorEventL
             @Override
             public void onConfigured(CameraCaptureSession session) {
                 try {
+                    captureRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CameraMetadata.CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL);
                     session.capture(captureBuilder.build(), captureListener, mBackgroundHandler);
                 } catch (CameraAccessException e) {
                     e.printStackTrace();

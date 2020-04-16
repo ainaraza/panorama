@@ -48,6 +48,9 @@ import static android.provider.MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE;
 public class MainSariaka extends AppCompatActivity implements SurfaceHolder.Callback {
 
 
+    private static final String TAG = "MyTag";
+    private static final float MIN_EXPOSURE_COMPENSATION = -2;
+    private static final float MAX_EXPOSURE_COMPENSATION = 2;
     SurfaceView cameraView;
     SurfaceHolder holder;
     android.hardware.Camera camera;
@@ -62,7 +65,6 @@ public class MainSariaka extends AppCompatActivity implements SurfaceHolder.Call
         cameraView = (SurfaceView) findViewById(R.id.cameraView);
         holder = cameraView.getHolder();
         holder.addCallback((SurfaceHolder.Callback) this);
-        Log.i("MAIN_SARIAKA", "Created");
     }
 
 
@@ -81,11 +83,19 @@ public class MainSariaka extends AppCompatActivity implements SurfaceHolder.Call
         param = camera.getParameters();
 
         //param.setFlashMode(android.hardware.Camera.Parameters.FLASH_MODE_TORCH);
-        if (param.isAutoExposureLockSupported()) {
-            Log.d("CustomCamera", "Exposure actuel= " + param.getExposureCompensation());
+        /*if(param.isAutoExposureLockSupported()){
 
+            //param.setExposureCompensation(0);
             param.setAutoExposureLock(true);
-        }
+            param.setSceneMode("sunset");
+            param.setExposureCompensation(0);
+            Log.d("CustomCamera","Exposure actuel= " + param.getExposureCompensation());
+            //param.setAutoExposureLock(true);
+        }*/
+//        setBestExposure(param, true);
+
+
+
 
         Display display = ((WindowManager) getSystemService(WINDOW_SERVICE)).getDefaultDisplay();
         if (display.getRotation() == Surface.ROTATION_0) {
@@ -103,8 +113,29 @@ public class MainSariaka extends AppCompatActivity implements SurfaceHolder.Call
         }
     }
 
-    @Override
+    public static void setBestExposure(android.hardware.Camera.Parameters parameters, boolean lightOn) {
+        int minExposure = parameters.getMinExposureCompensation();
+        int maxExposure = parameters.getMaxExposureCompensation();
+        float step = parameters.getExposureCompensationStep();
+        if ((minExposure != 0 || maxExposure != 0) && step > 0.0f) {
+            // Set low when light is on
+            float targetCompensation = lightOn ? MIN_EXPOSURE_COMPENSATION : MAX_EXPOSURE_COMPENSATION;
+            int compensationSteps = Math.round(targetCompensation / step);
+            float actualCompensation = step * compensationSteps;
+            // Clamp value:
+            compensationSteps = Math.max(Math.min(compensationSteps, maxExposure), minExposure);
+            if (parameters.getExposureCompensation() == compensationSteps) {
+                Log.i(TAG, "Exposure compensation already set to " + compensationSteps + " / " + actualCompensation);
+            } else {
+                Log.i(TAG, "Setting exposure compensation to " + compensationSteps + " / " + actualCompensation);
+                parameters.setExposureCompensation(compensationSteps);
+            }
+        } else {
+            Log.i(TAG, "Camera does not support exposure compensation");
+        }
+    }
 
+    @Override
     protected void onDestroy() {
         super.onDestroy();
     }
@@ -127,7 +158,9 @@ public class MainSariaka extends AppCompatActivity implements SurfaceHolder.Call
                 Log.i("CameraLog", "Shutter Called");
                 android.hardware.Camera.Parameters param;
                 param = camera.getParameters();
-                param.setAutoExposureLock(true);
+//                param.setAutoExposureLock(true);
+                int current_exposure = param.getExposureCompensation();
+                Log.i("MAIN_SARIAKA", "Current exposure: " + Integer.valueOf(current_exposure));
                 camera.setParameters(param);
             }
         }, null, new android.hardware.Camera.PictureCallback() {
@@ -135,7 +168,7 @@ public class MainSariaka extends AppCompatActivity implements SurfaceHolder.Call
             public void onPictureTaken(byte[] data, android.hardware.Camera camera) {
                 android.hardware.Camera.Parameters param;
                 param = camera.getParameters();
-                param.setAutoExposureLock(true);
+//                param.setAutoExposureLock(true);
                 camera.setParameters(param);
                 Log.d("MainActivity", "Azo tsara ny sary");
                 Matrix matrix = new Matrix();
@@ -198,7 +231,7 @@ public class MainSariaka extends AppCompatActivity implements SurfaceHolder.Call
             camera.setPreviewDisplay(holder);
             android.hardware.Camera.Parameters param;
             param = camera.getParameters();
-            param.setAutoExposureLock(true);
+//            param.setAutoExposureLock(true);
             camera.setParameters(param);
 
             camera.startPreview();
